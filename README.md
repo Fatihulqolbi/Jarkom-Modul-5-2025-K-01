@@ -165,6 +165,33 @@ chmod +x /etc/rc.local
 
 ```
 
+### Winderland
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr flush dev eth1
+ip addr flush dev eth2
+
+# A2: ke Moria
+ip addr add 10.64.1.214/30 dev eth0
+# A3: Durin LAN
+ip addr add 10.64.1.129/26 dev eth1
+# A4: Khamul LAN
+ip addr add 10.64.1.193/29 dev eth2
+
+ip link set eth0 up
+ip link set eth1 up
+ip link set eth2 up
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+ip route add default via 10.64.1.213
+
+exit 0
+
+```
+
 ### Durim
 ```
 #!/bin/sh
