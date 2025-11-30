@@ -576,6 +576,8 @@ echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
 ## MISI 1 No 4
 
+### Membenahi Keselahan Config
+
 ### Rivendell
 ```
 #!/bin/sh
@@ -653,4 +655,406 @@ ping 10.64.1.225   # Rivendell
 ping 8.8.8.8
 ping google.com
 ```
+
+## Setup Seluruh hal yang Diperlukan
+
+## Jangan Lupa tambahkan (Agar Terhubung ke Internet)
+```
+nano /etc/rc.local
+
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+/etc/rc.local
+```
+
+## Vilya as a DHCP Server
+```
+apt update
+apt install isc-dhcp-server -y
+```
+
+```
+nano /etc/default/isc-dhcp-server
+
+INTERFACESv4="eth0"
+INTERFACESv6=""
+```
+
+```
+nano /etc/dhcp/dhcpd.conf
+
+authoritative;
+default-lease-time 600;
+max-lease-time 7200;
+
+option domain-name "lotr.local";
+# DNS kita: Narya
+option domain-name-servers 10.64.1.227;
+
+# ===== A4: Khamul (5 host), 10.64.1.192/29 =====
+subnet 10.64.1.192 netmask 255.255.255.248 {
+  range 10.64.1.194 10.64.1.198;       # jangan pakai .193 kalau itu IP router
+  option routers 10.64.1.193;          # gateway di Winderland
+  option broadcast-address 10.64.1.199;
+}
+
+# ===== A3: Durin (50 host), 10.64.1.128/26 =====
+subnet 10.64.1.128 netmask 255.255.255.192 {
+  range 10.64.1.130 10.64.1.190;
+  option routers 10.64.1.129;          # gateway di Winderland
+  option broadcast-address 10.64.1.191;
+}
+
+# ===== A10: Elendil + Isildur (200 + 30 host), 10.64.0.0/24 =====
+subnet 10.64.0.0 netmask 255.255.255.0 {
+  range 10.64.0.10 10.64.0.250;
+  option routers 10.64.0.1;            # gateway di Minastir / Switch4
+  option broadcast-address 10.64.0.255;
+}
+
+# ===== A13: Gilgalad + Cirdan (100 + 20 host), 10.64.1.0/25 =====
+subnet 10.64.1.0 netmask 255.255.255.128 {
+  range 10.64.1.10 10.64.1.120;
+  option routers 10.64.1.1;            # gateway di AnduinBanks / Switch5
+  option broadcast-address 10.64.1.127;
+}
+
+# ===== A7: jaringan kecil di belakang Rivendell (Vilya + Narya), 10.64.1.224/29 =====
+# Sebenarnya ini dipakai server, tapi kita definisikan juga supaya dhcpd tahu jaringan ini.
+subnet 10.64.1.224 netmask 255.255.255.248 {
+  range 10.64.1.228 10.64.1.229;       # optional, bisa dipakai host lain kalau ada
+  option routers 10.64.1.225;          # gateway = Rivendell
+  option broadcast-address 10.64.1.231;
+}
+
+service isc-dhcp-server restart
+service isc-dhcp-server status
+```
+
+## DHCP Relay
+
+### Minastir
+```
+apt update
+apt install isc-dhcp-relay -y
+```
+
+```
+nano /etc/default/isc-dhcp-relay
+
+SERVERS="10.64.1.226"
+
+# eth2 = ke Switch4 (klien 10.64.0.0/24)
+# eth0/eth1 = ke Osgiliath / Pelargir
+INTERFACES="eth2 eth0 eth1"
+
+OPTIONS=""
+
+```
+
+```
+service isc-dhcp-relay restart
+```
+
+### AnduinBanks
+```
+apt update
+apt install isc-dhcp-relay -y
+```
+
+```
+nano /etc/default/isc-dhcp-relay
+
+SERVERS="10.64.1.226"
+
+# eth1 = ke Switch5 (klien 10.64.1.0/25)
+# eth0 = ke Pelargir
+INTERFACES="eth1 eth0"
+
+OPTIONS=""
+
+```
+
+```
+service isc-dhcp-relay restart
+```
+
+### Rivendell
+```
+apt update
+apt install isc-dhcp-relay -y
+```
+
+```
+SERVERS="10.64.1.226"
+
+# eth1 = ke Switch3 (Vilya/Narya)
+# eth0 = ke Osgiliath
+INTERFACES="eth1 eth0"
+
+OPTIONS=""
+```
+
+```
+service isc-dhcp-relay restart
+```
+
+## Narya as DNS Server
+
+```
+apt update
+apt install bind9 -y
+```
+
+```
+nano /etc/bind/named.conf.options
+
+options {
+    directory "/var/cache/bind";
+
+    recursion yes;
+    allow-query { any; };
+
+    forwarders {
+        8.8.8.8;
+        1.1.1.1;
+    };
+
+    dnssec-validation auto;
+
+    listen-on-v6 { any; };
+};
+
+```
+
+```
+ln -s /etc/init.d/named /etc/init.d/bind9
+service bind9 restart
+```
+
+### Testing
+
+```
+dig google.com @127.0.0.1
+ping google.com
+```
+
+<img width="799" height="704" alt="image" src="https://github.com/user-attachments/assets/3a082f13-f760-41e6-a97b-f916a95d2f54" />
+
+## Web Server
+
+### IronHills
+```
+apt update
+apt install apache2 -y
+echo "Welcome to IronHills" > /var/www/html/index.html
+
+```
+
+```
+service apache2 start
+service apache2 restart
+```
+
+### Palantir 
+
+```
+apt update
+apt install apache2 -y
+echo "Welcome to Palantir" > /var/www/html/index.html
+```
+
+```
+service apache2 start
+service apache2 restart
+```
+
+## DHCP Client ( Durin - Khamul - Elendil - Ishildur - Gilgalad - Cirdan )
+
+```
+nano /etc/rc.local
+
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+/etc/rc.local
+```
+
+```
+nano /etc/network/interfaces
+
+auto eth0
+iface eth0 inet dhcp
+ifdown eth0 2>/dev/null; ifup eth0
+```
+
+### Untuk memanggil lewat host
+```
+nano /etc/hosts
+
+10.64.1.234  Palantir
+10.64.1.210  IronHills
+```
+
+### Testing
+
+```
+curl http://10.64.1.234
+curl http://Palantir
+curl http://10.64.1.210
+curl http://IronHills
+```
+
+<img width="433" height="181" alt="image" src="https://github.com/user-attachments/assets/54efb92d-b205-4bcf-866f-f8d710dce845" />
+
+## Misi 2 No 2 
+
+### Tambahkan ke Osgiriath
+```
+iptables -A FORWARD -p icmp -d 10.64.1.226 -j DROP
+```
+
+```
+#!/bin/sh
+# rc.local OSGILIATH
+# Router pusat + Gateway Internet
+
+#############################################
+# 1. IP FORWARDING
+#############################################
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+
+#############################################
+# 2. IP ADDRESS INTERFACE INTERNAL (10.64.x.x)
+#############################################
+
+# Bersihkan dulu supaya tidak dobel
+ip addr flush dev eth1 2>/dev/null
+ip addr flush dev eth2 2>/dev/null
+ip addr flush dev eth3 2>/dev/null
+
+# A5 – Osgiliath ↔ Moria
+ip addr add 10.64.1.218/30 dev eth1
+
+# A6 – Osgiliath ↔ Rivendell
+ip addr add 10.64.1.221/30 dev eth2
+
+# A8 – Osgiliath ↔ Minastir
+ip addr add 10.64.1.201/29 dev eth3
+
+ip link set eth1 up
+ip link set eth2 up
+ip link set eth3 up
+
+
+#############################################
+# 3. ROUTING INTERNAL (A1–A13)
+#############################################
+
+# ----- KIRI (via Moria: 10.64.1.217) -----
+ip route add 10.64.1.208/30 via 10.64.1.217 2>/dev/null   # IronHills
+ip route add 10.64.1.128/26 via 10.64.1.217 2>/dev/null   # Durin
+ip route add 10.64.1.192/29 via 10.64.1.217 2>/dev/null   # Khamul
+ip route add 10.64.1.212/30 via 10.64.1.217 2>/dev/null   # Winderland
+
+# ----- KANAN (via Minastir: 10.64.1.202) -----
+ip route add 10.64.0.0/24   via 10.64.1.202 2>/dev/null   # Elendil & Isildur
+ip route add 10.64.1.228/30 via 10.64.1.202 2>/dev/null   # Minastir–Pelargir
+ip route add 10.64.1.232/30 via 10.64.1.202 2>/dev/null   # Pelargir–Palantir
+ip route add 10.64.1.236/30 via 10.64.1.202 2>/dev/null   # Pelargir–AnduinBanks
+ip route add 10.64.1.0/25   via 10.64.1.202 2>/dev/null   # Gilgalad & Cirdan
+
+# ----- Vilya & Narya (A7) via Rivendell (10.64.1.222) -----
+ip route add 10.64.1.224/29 via 10.64.1.222 2>/dev/null   # Rivendell LAN, Vilya, Narya
+
+
+#############################################
+# 4. KONFIGURASI INTERNET (eth0) – NAT GNS3
+#############################################
+
+ip addr flush dev eth0 2>/dev/null
+ip addr add 192.168.122.100/24 dev eth0
+ip link set eth0 up
+
+ip route del default 2>/dev/null
+ip route add default via 192.168.122.1 dev eth0
+
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+
+
+#############################################
+# 5. FIREWALL – NAT TANPA MASQUERADE (SNAT)
+#############################################
+
+iptables -t nat -F
+iptables -F FORWARD
+iptables -P FORWARD ACCEPT
+
+iptables -t nat -A POSTROUTING -o eth0 -j SNAT --to-source 192.168.122.100
+
+
+#############################################
+# 6. IZINKAN TRAFIK ANTAR-LAN & INTERNET
+#############################################
+
+# internal ↔ internet
+iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth3 -j ACCEPT
+
+# antar-LAN (kiri–kanan–tengah)
+iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth2 -j ACCEPT
+
+
+#############################################
+# 7. FIREWALL SPESIAL UNTUK VILYA (10.64.1.226)
+#############################################
+# 7a. SELALU IZINKAN traffic ESTABLISHED / RELATED dulu
+iptables -I FORWARD 1 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# 7b. BLOK ping baru (echo-request) dari node lain ke Vilya
+iptables -I FORWARD 2 -p icmp --icmp-type echo-request -d 10.64.1.226 -j DROP
+
+exit 0
+
+```
+
+```
+chmod +x /etc/rc.local
+/etc/rc.local
+iptables -L FORWARD -n --line-numbers
+```
+
+### Testing ( Sebelum ditambahkan )
+
+<img width="607" height="176" alt="image" src="https://github.com/user-attachments/assets/8e864d76-5906-47bc-8462-bda165fdd021" />
+
+<img width="623" height="153" alt="image" src="https://github.com/user-attachments/assets/5e3ae442-a8b9-412a-a503-6d3ae12a7823" />
+
+### Testing ( Setelah ditambahkan )
+
+<img width="911" height="225" alt="image" src="https://github.com/user-attachments/assets/fe5149a0-a634-4993-816f-84cd7b28879a" />
+
+<img width="654" height="117" alt="image" src="https://github.com/user-attachments/assets/3329c326-6a4a-48f4-9b37-a29db8145a60" />
+
+<img width="647" height="117" alt="image" src="https://github.com/user-attachments/assets/6cfaf9f5-c9fe-4dcc-a8c8-a9a6530fc012" />
+
+### Testing Vilya
+
+<img width="861" height="634" alt="image" src="https://github.com/user-attachments/assets/6a3f99ca-8d31-4aeb-a6ba-c530a9eb29c5" />
+
+
 
