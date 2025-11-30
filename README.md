@@ -570,4 +570,6 @@ echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
 <img width="910" height="457" alt="image" src="https://github.com/user-attachments/assets/2ab6c1c6-d628-4d73-8e41-40d61860dd03" />
 
+-----------------------------------------------------------------------------------------------------------------------------------
+
 <img width="840" height="303" alt="image" src="https://github.com/user-attachments/assets/2d4cb66c-e19a-41be-a26b-3f571ae2446d" />
