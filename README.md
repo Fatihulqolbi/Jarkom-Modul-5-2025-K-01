@@ -439,3 +439,125 @@ ping 10.64.1.230    # Pelargir
 ping 10.64.1.238    # AnduinBanks
 ping 10.64.1.20     # Cirdan
 ```
+
+## MISI 2 No 1
+
+### Osgiliath
+```
+nano /etc/rc.local
+
+#!/bin/sh
+
+#############################################
+# OSGILIATH – ROUTER PUSAT + GATEWAY INTERNET
+#############################################
+
+# ===========================================
+# 1. Aktifkan IP FORWARDING
+# ===========================================
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+
+
+# ===========================================
+# 2. IP ADDRESS INTERFACE INTERNAL (10.64.x.x)
+# ===========================================
+
+# Reset interface internal
+ip addr flush dev eth1 2>/dev/null
+ip addr flush dev eth2 2>/dev/null
+ip addr flush dev eth3 2>/dev/null
+
+# A5 – Osgiliath → Moria
+ip addr add 10.64.1.218/30 dev eth1
+
+# A6 – Osgiliath → Rivendell
+ip addr add 10.64.1.221/30 dev eth2
+
+# A8 – Osgiliath → Minastir
+ip addr add 10.64.1.201/29 dev eth3
+
+ip link set eth1 up
+ip link set eth2 up
+ip link set eth3 up
+
+
+
+# ===========================================
+# 3. ROUTING INTERNAL A1–A13
+# ===========================================
+
+# KIRI – menuju Moria → Winderland → Durin/Khamul/IronHills
+ip route add 10.64.1.208/30 via 10.64.1.217  # A1 IronHills
+ip route add 10.64.1.128/26 via 10.64.1.217  # A3 Durin
+ip route add 10.64.1.192/29 via 10.64.1.217  # A4 Khamul
+ip route add 10.64.1.212/30 via 10.64.1.217  # A2 Winderland
+
+# KANAN – via Minastir
+ip route add 10.64.0.0/24   via 10.64.1.202  # A10 Elendil & Isildur
+ip route add 10.64.1.228/30 via 10.64.1.202  # A9 Pelargir
+ip route add 10.64.1.232/30 via 10.64.1.202  # A11 Palantir
+ip route add 10.64.1.236/30 via 10.64.1.202  # A12 AnduinBanks
+ip route add 10.64.1.0/25   via 10.64.1.202  # A13 Gilgalad & Cirdan
+
+
+
+# ===========================================
+# 4. KONFIGURASI INTERNET (eth0)
+# ===========================================
+
+# Untuk GNS3 NAT, gunakan network default:
+# 192.168.122.0/24 (virbr0)
+# Ganti IP jika NAT kamu beda
+
+ip addr flush dev eth0 2>/dev/null
+ip addr add 192.168.122.100/24 dev eth0
+ip link set eth0 up
+
+ip route del default 2>/dev/null
+ip route add default via 192.168.122.1
+
+# DNS untuk resolusi domain
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+
+
+
+# ===========================================
+# 5. FIREWALL NAT TANPA MASQUERADE (SNAT)
+# ===========================================
+
+# Bersihkan aturan lama
+iptables -t nat -F
+iptables -F FORWARD
+
+# NAT: GUNAKAN IP eth0
+iptables -t nat -A POSTROUTING -o eth0 -j SNAT --to-source 192.168.122.100
+
+
+
+# ===========================================
+# 6. FORWARD LAN <-> INTERNET
+# ===========================================
+
+iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth0 -j ACCEPT
+
+iptables -A FORWARD -i eth0 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth3 -j ACCEPT
+
+
+
+exit 0
+
+```
+
+### Tambakan ke setiap node - Agar Bisa Ping google.com
+```
+nano /etc/rc.local
+
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+```
