@@ -573,3 +573,84 @@ echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 -----------------------------------------------------------------------------------------------------------------------------------
 
 <img width="840" height="303" alt="image" src="https://github.com/user-attachments/assets/2d4cb66c-e19a-41be-a26b-3f571ae2446d" />
+
+## MISI 1 No 4
+
+### Rivendell
+```
+#!/bin/sh
+
+# ------- BERSIHKAN DULU -------
+ip addr flush dev eth0
+ip addr flush dev eth1
+
+# ------- A6: Rivendell <-> Osgiliath -------
+# Network: 10.64.1.220/30 → host 10.64.1.221 & 10.64.1.222
+# Anggap: Osgiliath eth2 = 10.64.1.221, Rivendell eth0 = 10.64.1.222
+ip addr add 10.64.1.222/30 dev eth0
+ip link set eth0 up
+
+# ------- A7 (/29) belakang Switch3: Vilya + Narya -------
+# Network: 10.64.1.224/29 → host 10.64.1.225–10.64.1.230
+# Rivendell eth1 = 10.64.1.225 (gateway lokal)
+ip addr add 10.64.1.225/29 dev eth1
+ip link set eth1 up
+
+# Aktifkan routing
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# Default route ke Osgiliath
+ip route add default via 10.64.1.221
+
+exit 0
+
+```
+
+### Osgiliath
+```
+# JARINGAN BELAKANG RIVENDELL (Vilya + Narya, 10.64.1.224/29)
+ip route add 10.64.1.224/29 via 10.64.1.222
+```
+
+### Vilya
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.226/29 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.225
+
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+exit 0
+
+```
+
+### Narya
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.227/29 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.225
+
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+exit 0
+
+```
+
+### Testing
+```
+ping 10.64.1.221      # Osgiliath
+ping 10.64.1.225   # Rivendell
+ping 8.8.8.8
+ping google.com
+```
+
