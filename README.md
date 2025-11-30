@@ -76,5 +76,339 @@
 | A11  | 2            | 2               | 0           | 10.64.1.232     | /30   | 255.255.255.252  | 10.64.1.233 – 10.64.1.234      | 10.64.1.235 |
 | A12  | 2            | 2               | 0           | 10.64.1.236     | /30   | 255.255.255.252  | 10.64.1.237 – 10.64.1.238      | 10.64.1.239 |
 
+## Config Jarkom MISI 1
+
+### Osgiliath
+```
+nano /etc/rc.local
+
+#!/bin/sh
+
+# Bersihkan dulu biar gak dobel
+ip addr flush dev eth1
+ip addr flush dev eth2
+ip addr flush dev eth3
+
+# A5: ke Moria
+ip addr add 10.64.1.218/30 dev eth1
+# A6: ke Rivendell
+ip addr add 10.64.1.221/30 dev eth2
+# A8: ke Minastir
+ip addr add 10.64.1.201/29 dev eth3
+
+ip link set eth1 up
+ip link set eth2 up
+ip link set eth3 up
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# ====== ROUTING KIRI (menuju IronHills, Durin, Khamul) ======
+# A1 Moria–IronHills
+ip route add 10.64.1.208/30 via 10.64.1.217
+# A3 Durin
+ip route add 10.64.1.128/26 via 10.64.1.217
+# A4 Khamul
+ip route add 10.64.1.192/29 via 10.64.1.217
+# A2 Moria–Winderland
+ip route add 10.64.1.212/30 via 10.64.1.217
+
+# ====== ROUTING KANAN (menuju Elendil, Isildur, Palantir, Gilgalad, Cirdan) ======
+# Semua via Minastir (10.64.1.202)
+ip route add 10.64.0.0/24   via 10.64.1.202   # Elendil & Isildur (A10)
+ip route add 10.64.1.228/30 via 10.64.1.202   # Minastir–Pelargir (A9)
+ip route add 10.64.1.232/30 via 10.64.1.202   # Pelargir–Palantir (A11)
+ip route add 10.64.1.236/30 via 10.64.1.202   # Pelargir–AnduinBanks (A12)
+ip route add 10.64.1.0/25   via 10.64.1.202   # Gilgalad & Cirdan (A13)
+
+exit 0
+
+chmod +x /etc/rc.local
+/etc/rc.local
+echo "/etc/rc.local" >> /etc/profile
+```
+
+### Moria
+```
+nano /etc/rc.local
+
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr flush dev eth1
+ip addr flush dev eth2
+
+# A5 ke Osgiliath
+ip addr add 10.64.1.217/30 dev eth0
+# A1 ke IronHills
+ip addr add 10.64.1.209/30 dev eth1
+# A2 ke Winderland
+ip addr add 10.64.1.213/30 dev eth2
+
+ip link set eth0 up
+ip link set eth1 up
+ip link set eth2 up
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# Default ke Osgiliath
+ip route add default via 10.64.1.218
+
+# LAN di belakang Winderland
+ip route add 10.64.1.128/26 via 10.64.1.214   # Durin
+ip route add 10.64.1.192/29 via 10.64.1.214   # Khamul
+
+exit 0
 
 
+chmod +x /etc/rc.local
+/etc/rc.local
+
+```
+
+### Durim
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.130/26 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.129   # Winderland
+
+exit 0
+```
+
+### Khamul
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.194/29 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.193   # Winderland
+
+exit 0
+```
+
+### IronHills
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+
+# A1: Moria–IronHills
+ip addr add 10.64.1.210/30 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.209   # Moria
+
+exit 0
+```
+
+### Rivendell
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+
+# A6: ke Osgiliath
+ip addr add 10.64.1.222/30 dev eth0
+ip link set eth0 up
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+ip route add default via 10.64.1.221
+
+exit 0
+```
+
+### Vilya
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.226/29 dev eth0    # kamu boleh pakai /29 di sini
+ip link set eth0 up
+
+ip route add default via 10.64.1.225   # Rivendell
+
+exit 0
+```
+
+### Narya
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.227/29 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.225   # Rivendell
+
+exit 0
+```
+
+### Minastir
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr flush dev eth1
+ip addr flush dev eth2
+
+# A8: ke Osgiliath
+ip addr add 10.64.1.202/29 dev eth0
+# A9: ke Pelargir
+ip addr add 10.64.1.229/30 dev eth1
+# A10: LAN Elendil & Isildur
+ip addr add 10.64.0.1/24 dev eth2
+
+ip link set eth0 up
+ip link set eth1 up
+ip link set eth2 up
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+ip route add default via 10.64.1.201   # Osgiliath
+
+# Jaringan di belakang Pelargir
+ip route add 10.64.1.232/30 via 10.64.1.230   # Palantir
+ip route add 10.64.1.236/30 via 10.64.1.230   # AnduinBanks
+ip route add 10.64.1.0/25  via 10.64.1.230   # Gilgalad & Cirdan
+
+exit 0
+```
+
+### Elendil
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.0.2/24 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.0.1   # Minastir
+
+exit 0
+```
+
+### Isildur
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.0.3/24 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.0.1
+
+exit 0
+
+```
+
+### Pelargir
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr flush dev eth1
+ip addr flush dev eth2
+
+# A9: ke Minastir
+ip addr add 10.64.1.230/30 dev eth0
+# A12: ke AnduinBanks
+ip addr add 10.64.1.237/30 dev eth1
+# A11: ke Palantir
+ip addr add 10.64.1.233/30 dev eth2
+
+ip link set eth0 up
+ip link set eth1 up
+ip link set eth2 up
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+ip route add default via 10.64.1.229
+
+# LAN Gilgalad & Cirdan via AnduinBanks
+ip route add 10.64.1.0/25 via 10.64.1.238
+
+exit 0
+
+```
+
+### Palantir
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+
+# A11: Pelargir–Palantir
+ip addr add 10.64.1.234/30 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.233
+
+exit 0
+
+```
+
+### AnduinBanks
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr flush dev eth1
+
+# A12: Pelargir–AnduinBanks
+ip addr add 10.64.1.238/30 dev eth0
+# A13: LAN elf
+ip addr add 10.64.1.1/25 dev eth1
+
+ip link set eth0 up
+ip link set eth1 up
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+ip route add default via 10.64.1.237   # Pelargir
+
+exit 0
+```
+
+### Gilgalad
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.10/25 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.1   # AnduinBanks
+
+exit 0
+```
+
+### Cirdan
+```
+#!/bin/sh
+
+ip addr flush dev eth0
+ip addr add 10.64.1.20/25 dev eth0
+ip link set eth0 up
+
+ip route add default via 10.64.1.1
+
+exit 0
+```
+
+### Uji Coba ( Ping antar Node )
+```
+Di IronHills :
+
+ping 10.64.1.209    # Moria
+ping 10.64.1.218    # Osgiliath
+ping 10.64.1.202    # Minastir
+ping 10.64.1.230    # Pelargir
+ping 10.64.1.238    # AnduinBanks
+ping 10.64.1.20     # Cirdan
+```
