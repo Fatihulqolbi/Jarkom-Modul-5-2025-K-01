@@ -440,6 +440,10 @@ ping 10.64.1.238    # AnduinBanks
 ping 10.64.1.20     # Cirdan
 ```
 
+### Dokumentasi
+<img width="678" height="875" alt="image" src="https://github.com/user-attachments/assets/21ca67d8-d99e-4429-8e4f-38e2dc601287" />
+
+
 ## MISI 2 No 1
 
 ### Osgiliath
@@ -561,3 +565,9 @@ nano /etc/rc.local
 echo "nameserver 8.8.8.8"  > /etc/resolv.conf
 echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 ```
+
+### Dokumentasi
+
+<img width="910" height="457" alt="image" src="https://github.com/user-attachments/assets/2ab6c1c6-d628-4d73-8e41-40d61860dd03" />
+
+<img width="840" height="303" alt="image" src="https://github.com/user-attachments/assets/2d4cb66c-e19a-41be-a26b-3f571ae2446d" />
