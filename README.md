@@ -221,16 +221,31 @@ exit 0
 ### IronHills
 ```
 #!/bin/sh
+# rc.local IRONHILLS - Web server
 
-ip addr flush dev eth0
+#############################################
+# 1. IP ADDRESS & ROUTING
+#############################################
+
+# Bersihkan IP lama dulu supaya tidak muncul "File exists"
+ip addr flush dev eth0 2>/dev/null
 
 # A1: Moria–IronHills
 ip addr add 10.64.1.210/30 dev eth0
 ip link set eth0 up
 
-ip route add default via 10.64.1.209   # Moria
+# Hapus default route lama lalu set gateway ke Moria
+ip route del default 2>/dev/null
+ip route add default via 10.64.1.209 dev eth0
+
+#############################################
+# 2. DNS (biar apt bisa resolve)
+#############################################
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
 exit 0
+
 ```
 
 ### Rivendell
