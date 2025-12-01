@@ -1117,6 +1117,8 @@ iptables -L FORWARD -n --line-numbers
 <img width="1215" height="400" alt="image" src="https://github.com/user-attachments/assets/353759a2-d27b-4e03-915c-6455d49f7c81" />
 
 ```
+apt install netcat-openbsd -y
+
 dig google.com @10.64.1.227
 
 nc -vz 10.64.1.227 53
@@ -1127,6 +1129,8 @@ nc -vz 10.64.1.227 53
 
 ### Testing Client ( Durin ) [GAGAL]
 ```
+
+apt install netcat-openbsd -y
 dig google.com @10.64.1.227
 
 nc -vz 10.64.1.227 53
