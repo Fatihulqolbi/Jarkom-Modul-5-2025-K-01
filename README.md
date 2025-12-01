@@ -2581,3 +2581,7 @@ chmod +x /etc/rc.local
 ### Elendil
 
 <img width="920" height="241" alt="image" src="https://github.com/user-attachments/assets/c810131a-43f3-4087-a1aa-cea703b8afd7" />
+
+## Misi 2 No 6
+
+
