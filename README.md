@@ -1351,4 +1351,620 @@ chmod +x /etc/rc.local
 
 ## Misi 2 No 6
 
+### Palantir 
+```
+nano /etc/rc.local
 
+#!/bin/sh
+# rc.local PALANTIR FINAL
+# Firewall Jadwal + Anti Port Scan (No log file required)
+
+#############################################
+# 1. IP ADDRESS & ROUTING
+#############################################
+
+ip addr flush dev eth0 2>/dev/null
+ip addr add 10.64.1.234/30 dev eth0
+ip link set eth0 up
+
+ip route del default 2>/dev/null
+ip route add default via 10.64.1.233 dev eth0
+
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+
+
+#############################################
+# 2. SIAPKAN CHAIN PORT_SCAN
+#############################################
+
+# Hapus chain lama
+iptables -F PORT_SCAN 2>/dev/null
+iptables -X PORT_SCAN 2>/dev/null
+
+# Buat chain baru
+iptables -N PORT_SCAN
+
+# Isi chain
+iptables -A PORT_SCAN -m limit --limit 3/min --limit-burst 5 \
+    -j LOG --log-prefix "PORT_SCAN_DETECTED: " --log-level 4
+
+iptables -A PORT_SCAN -m recent --set --name blocklist --rsource
+iptables -A PORT_SCAN -j DROP
+
+
+#############################################
+# 3. FIREWALL INPUT DASAR
+#############################################
+
+iptables -F INPUT
+iptables -P INPUT ACCEPT
+
+# PRIORITAS BAN PALING ATAS
+iptables -I INPUT 1 -m recent --rcheck --name blocklist --rsource -j DROP
+
+# Loopback & Established
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# ICMP (ping) – aman karena blocklist di rule 1
+iptables -A INPUT -p icmp -j ACCEPT
+
+# SSH Selalu boleh
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+
+#############################################
+# 4. DETEKSI PORT SCAN RANGE 1–100
+#############################################
+
+# Jika port yang disentuh >= 16 dalam 20 detik → kirim ke PORT_SCAN
+iptables -A INPUT -p tcp --syn --dport 1:100 \
+    -m recent --update --seconds 20 --hitcount 16 --name portscan --rsource \
+    -j PORT_SCAN
+
+# Setiap SYN baru tambahkan ke daftar "portscan"
+iptables -A INPUT -p tcp --syn --dport 1:100 \
+    -m recent --set --name portscan --rsource
+
+
+#############################################
+# 5. FIREWALL WAKTU PALANTIR (PORT 80)
+#############################################
+
+# ELF (Gilgalad 10.64.1.10, Cirdan 10.64.1.11) — 00:00–16:59
+iptables -A INPUT -p tcp -s 10.64.1.10 --dport 80 \
+    -m time --timestart 00:00 --timestop 16:59 --kerneltz -j ACCEPT
+iptables -A INPUT -p tcp -s 10.64.1.11 --dport 80 \
+    -m time --timestart 00:00 --timestop 16:59 --kerneltz -j ACCEPT
+
+# MANUSIA (Elendil 10.64.0.2, Isildur 10.64.0.3) — 17:00–23:00
+iptables -A INPUT -p tcp -s 10.64.0.2 --dport 80 \
+    -m time --timestart 17:00 --timestop 23:00 --kerneltz -j ACCEPT
+iptables -A INPUT -p tcp -s 10.64.0.3 --dport 80 \
+    -m time --timestart 17:00 --timestop 23:00 --kerneltz -j ACCEPT
+
+# Selain waktu + IP → tolak
+iptables -A INPUT -p tcp --dport 80 -j REJECT --reject-with icmp-port-unreachable
+
+
+#############################################
+# 6. INFO
+#############################################
+
+echo "[PALANTIR] Firewall jadwal + Anti port scan AKTIF"
+iptables -L INPUT -n --line-numbers
+iptables -L PORT_SCAN -n --line-numbers
+
+exit 0
+```
+
+```
+chmod +x /etc/rc.local
+/etc/rc.local
+
+Cek
+iptables -L INPUT -n --line-numbers
+iptables -L PORT_SCAN -n --line-numbers
+```
+
+### Elendil ( Sebelum Serangan ) 
+
+```
+ping -c 3 10.64.1.234
+```
+
+<img width="775" height="536" alt="image" src="https://github.com/user-attachments/assets/30ff28e0-7899-4801-bdfa-ee289a91c8f7" />
+
+### Waktunya Serangan 
+
+```
+nmap -p1-100 -T4 10.64.1.234
+```
+
+### Elendil ( Setelah Serangan )
+```
+ping -c 3 10.64.1.234
+# 100% packet loss
+
+curl -v http://10.64.1.234
+# Connection refused / hang
+
+nc -vz 10.64.1.234 80
+# failed
+```
+
+<img width="630" height="198" alt="image" src="https://github.com/user-attachments/assets/901b5449-8dde-4fc2-95f4-5747aa359250" />
+
+### Bukti di Palantir
+```
+cat /proc/net/xt_recent/blocklist
+iptables -L PORT_SCAN -n --line-numbers
+```
+
+<img width="1339" height="154" alt="image" src="https://github.com/user-attachments/assets/1a2781d2-c996-48ef-9ad6-a473cc1dd555" />
+
+### Jika Mau melakukan Serangan lagi ( Reset ) | Palantir
+
+```
+nano /root/reset-portscan.sh
+
+#!/bin/sh
+# Reset blacklist port-scan PALANTIR (pakai xt_recent "echo /")
+
+echo "===================================="
+echo " RESET PORTSCAN PALANTIR (xt_recent)"
+echo "===================================="
+
+# Bersihin daftar IP yang diblokir karena port scan
+if [ -f /proc/net/xt_recent/blocklist ]; then
+    echo / > /proc/net/xt_recent/blocklist
+    echo "[OK] /proc/net/xt_recent/blocklist dibersihkan"
+else
+    echo "[SKIP] blocklist tidak ada"
+fi
+
+if [ -f /proc/net/xt_recent/portscan ]; then
+    echo / > /proc/net/xt_recent/portscan
+    echo "[OK] /proc/net/xt_recent/portscan dibersihkan"
+else
+    echo "[SKIP] portscan tidak ada"
+fi
+
+# Reload firewall dari rc.local biar rules balik rapi
+if [ -x /etc/rc.local ]; then
+    echo "[INFO] Menjalankan ulang /etc/rc.local ..."
+    /etc/rc.local
+else
+    echo "[WARN] /etc/rc.local tidak bisa dieksekusi"
+fi
+
+echo "===================================="
+echo " SELESAI — Palantir siap dites lagi"
+echo "===================================="
+
+chmod +x /root/reset-portscan.sh
+/root/reset-portscan.sh
+```
+
+```
+cat /proc/net/xt_recent/blocklist
+cat /proc/net/xt_recent/portscan
+```
+
+### Tes Lagi Di Erendil
+```
+ping 10.64.1.234
+nmap -p1-100 10.64.1.234
+curl -v http://10.64.1.234
+```
+
+## Misi 2 No 7
+
+### IronHills
+```
+#!/bin/sh
+# rc.local IRONHILLS
+# Web Server + Firewall Akses Terjadwal + Limit 3 koneksi/IP
+
+
+#############################################
+# 0. MODE AKSES
+#############################################
+#   PILIH SALAH SATU:
+#   weekend_only  = Akses HANYA Sabtu & Minggu
+#   weekdays_only = Akses HANYA Senin–Jumat
+#############################################
+
+MODE="weekdays_only"   # UBAH ke "weekend_only" kalau mau mode Sabtu–Minggu saat demo
+
+
+
+#############################################
+# 1. IP & ROUTING
+#############################################
+
+ip addr flush dev eth0 2>/dev/null
+
+# IP IronHills
+ip addr add 10.64.1.210/30 dev eth0
+ip link set eth0 up
+
+# Default route via Moria
+ip route del default 2>/dev/null
+ip route add default via 10.64.1.209 dev eth0
+
+
+
+#############################################
+# 2. DNS
+#############################################
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+
+
+
+#############################################
+# 3. FIREWALL DASAR
+#############################################
+
+iptables -F INPUT
+iptables -P INPUT ACCEPT
+
+# Loopback
+iptables -A INPUT -i lo -j ACCEPT
+
+# Koneksi yang sudah ESTABLISHED/RELATED
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Ping
+iptables -A INPUT -p icmp -j ACCEPT
+
+# SSH
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+
+
+#############################################
+# 4. LIMIT 3 KONEKSI AKTIF PER IP KE PORT 80
+#############################################
+# Rule ini berlaku untuk SEMUA IP yang ke port 80.
+# Bedanya:
+#   - IP yang diizinkan oleh rule waktu (Durin, Khamul, Elendil, Isildur)
+#     boleh sampai 3 koneksi paralel.
+#   - Koneksi ke-4 dan seterusnya dari IP yang sama: REJECT dengan TCP RST.
+
+iptables -A INPUT -p tcp --syn --dport 80 \
+         -m connlimit --connlimit-above 3 --connlimit-mask 32 \
+         -j REJECT --reject-with tcp-reset
+
+
+
+#############################################
+# 5. FIREWALL WAKTU (HTTP)
+#############################################
+
+# IP yang diizinkan
+DURIN="10.64.1.130"
+KHAMUL="10.64.1.194"
+ELENDIL="10.64.0.2"
+ISILDUR="10.64.0.3"
+
+case "$MODE" in
+
+    "weekend_only")
+        echo "[IRONHILLS] MODE = weekend_only (HANYA Sat,Sun boleh)"
+
+        iptables -A INPUT -p tcp -s $DURIN   --dport 80 \
+                 -m time --weekdays Sat,Sun --kerneltz -j ACCEPT
+        iptables -A INPUT -p tcp -s $KHAMUL  --dport 80 \
+                 -m time --weekdays Sat,Sun --kerneltz -j ACCEPT
+        iptables -A INPUT -p tcp -s $ELENDIL --dport 80 \
+                 -m time --weekdays Sat,Sun --kerneltz -j ACCEPT
+        iptables -A INPUT -p tcp -s $ISILDUR --dport 80 \
+                 -m time --weekdays Sat,Sun --kerneltz -j ACCEPT
+        ;;
+
+    "weekdays_only")
+        echo "[IRONHILLS] MODE = weekdays_only (HANYA Mon–Fri boleh)"
+
+        iptables -A INPUT -p tcp -s $DURIN   --dport 80 \
+                 -m time --weekdays Mon,Tue,Wed,Thu,Fri --kerneltz -j ACCEPT
+        iptables -A INPUT -p tcp -s $KHAMUL  --dport 80 \
+                 -m time --weekdays Mon,Tue,Wed,Thu,Fri --kerneltz -j ACCEPT
+        iptables -A INPUT -p tcp -s $ELENDIL --dport 80 \
+                 -m time --weekdays Mon,Tue,Wed,Thu,Fri --kerneltz -j ACCEPT
+        iptables -A INPUT -p tcp -s $ISILDUR --dport 80 \
+                 -m time --weekdays Mon,Tue,Wed,Thu,Fri --kerneltz -j ACCEPT
+        ;;
+
+    *)
+        echo "[IRONHILLS] MODE tidak dikenal — TIDAK ada rule waktu khusus HTTP"
+        ;;
+esac
+
+# Semua akses HTTP lain (di luar IP/waktu di atas) ditolak
+iptables -A INPUT -p tcp --dport 80 -j REJECT --reject-with icmp-port-unreachable
+
+
+
+#############################################
+# 6. FINISH
+#############################################
+echo "[IRONHILLS] rc.local selesai"
+exit 0
+```
+
+```
+chmod +x /etc/rc.local
+/etc/rc.local
+iptables -L INPUT -n --line-numbers
+```
+
+### Install Apache Di IronHills
+
+```
+apt-get update
+apt-get install apache2 -y
+
+# Isi halaman test
+echo "Welcome to IronHills" > /var/www/html/index.html
+
+# Start Apache
+service apache2 start 2>/dev/null || /etc/init.d/apache2 start
+
+# Cek listen di port 80
+ss -tlnp | grep ':80' || netstat -tlnp | grep ':80'
+```
+
+### Testing IronHills
+```
+curl http://127.0.0.1/
+curl http://10.64.1.210/
+# Harus keluar: Welcome to IronHills
+```
+
+### Install ab di Durin (untuk stress test)
+```
+apt-get update
+apt-get install apache2-utils -y
+
+ab -V   # cuma cek versi
+```
+
+```
+curl http://10.64.1.210
+```
+
+### Uji Beban
+```
+ab -n 3 -c 3 http://10.64.1.210/
+
+curl http://10.64.1.210
+curl http://10.64.1.210
+curl http://10.64.1.210
+
+TES OVERLOAD
+ab -n 20 -c 10 http://10.64.1.210/
+ab -n 10 -c 5 http://10.64.1.210/
+
+for i in {1..10}; do
+  curl -s http://10.64.1.210/ > /dev/null &
+done
+wait
+```
+
+<img width="891" height="689" alt="image" src="https://github.com/user-attachments/assets/7b7d1a05-ba82-4405-8d10-2f643889f114" />
+
+
+## MISI 2 NO 8
+
+### Osgiliath
+```
+#!/bin/sh
+# rc.local OSGILIATH
+# Router pusat + Gateway Internet
+
+#############################################
+# 1. IP FORWARDING
+#############################################
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+
+#############################################
+# 2. IP ADDRESS INTERFACE INTERNAL (10.64.x.x)
+#############################################
+
+# Bersihkan dulu supaya tidak dobel
+ip addr flush dev eth1 2>/dev/null
+ip addr flush dev eth2 2>/dev/null
+ip addr flush dev eth3 2>/dev/null
+
+# A5 – Osgiliath ↔ Moria
+ip addr add 10.64.1.218/30 dev eth1
+
+# A6 – Osgiliath ↔ Rivendell
+ip addr add 10.64.1.221/30 dev eth2
+
+# A8 – Osgiliath ↔ Minastir
+ip addr add 10.64.1.201/29 dev eth3
+
+ip link set eth1 up
+ip link set eth2 up
+ip link set eth3 up
+
+
+#############################################
+# 3. ROUTING INTERNAL (A1–A13)
+#############################################
+
+# ----- KIRI (via Moria: 10.64.1.217) -----
+ip route add 10.64.1.208/30 via 10.64.1.217 2>/dev/null   # IronHills
+ip route add 10.64.1.128/26 via 10.64.1.217 2>/dev/null   # Durin
+ip route add 10.64.1.192/29 via 10.64.1.217 2>/dev/null   # Khamul
+ip route add 10.64.1.212/30 via 10.64.1.217 2>/dev/null   # Winderland
+
+# ----- KANAN (via Minastir: 10.64.1.202) -----
+ip route add 10.64.0.0/24   via 10.64.1.202 2>/dev/null   # Elendil & Isildur
+ip route add 10.64.1.228/30 via 10.64.1.202 2>/dev/null   # Minastir–Pelargir
+ip route add 10.64.1.232/30 via 10.64.1.202 2>/dev/null   # Pelargir–Palantir
+ip route add 10.64.1.236/30 via 10.64.1.202 2>/dev/null   # Pelargir–AnduinBanks
+ip route add 10.64.1.0/25   via 10.64.1.202 2>/dev/null   # Gilgalad & Cirdan
+
+# ----- Vilya & Narya (A7) via Rivendell (10.64.1.222) -----
+ip route add 10.64.1.224/29 via 10.64.1.222 2>/dev/null   # Rivendell LAN, Vilya, Narya
+
+
+#############################################
+# 4. KONFIGURASI INTERNET (eth0) – NAT GNS3
+#############################################
+
+ip addr flush dev eth0 2>/dev/null
+ip addr add 192.168.122.100/24 dev eth0
+ip link set eth0 up
+
+ip route del default 2>/dev/null
+ip route add default via 192.168.122.1 dev eth0
+
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+
+
+#############################################
+# 5. FIREWALL – NAT TANPA MASQUERADE (SNAT)
+#############################################
+
+iptables -t nat -F
+iptables -F FORWARD
+iptables -P FORWARD ACCEPT
+
+# NAT ke internet (GNS3 cloud)
+iptables -t nat -A POSTROUTING -o eth0 -j SNAT --to-source 192.168.122.100
+
+
+#############################################
+# 6. IZINKAN TRAFIK ANTAR-LAN & INTERNET
+#############################################
+
+# internal ↔ internet
+iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth3 -j ACCEPT
+
+# antar-LAN (kiri–kanan–tengah)
+iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth2 -j ACCEPT
+
+
+#############################################
+# 7. FIREWALL SPESIAL UNTUK VILYA (10.64.1.226)
+#############################################
+# 7a. SELALU IZINKAN traffic ESTABLISHED / RELATED dulu
+iptables -I FORWARD 1 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# 7b. BLOK ping baru (echo-request) dari node lain ke Vilya
+iptables -I FORWARD 2 -p icmp --icmp-type echo-request -d 10.64.1.226 -j DROP
+
+
+#############################################
+# 8. FIREWALL DNS – HANYA VILYA → NARYA
+#############################################
+# Izinkan DNS (UDP & TCP 53) hanya dari Vilya (10.64.1.226) ke Narya (10.64.1.227)
+iptables -I FORWARD 3 -s 10.64.1.226 -d 10.64.1.227 -p udp --dport 53 -j ACCEPT
+iptables -I FORWARD 4 -s 10.64.1.226 -d 10.64.1.227 -p tcp --dport 53 -j ACCEPT
+
+# Blok semua akses DNS (UDP & TCP 53) lain ke Narya
+iptables -I FORWARD 5 -d 10.64.1.227 -p udp --dport 53 -j DROP
+iptables -I FORWARD 6 -d 10.64.1.227 -p tcp --dport 53 -j DROP
+
+
+#############################################
+# 9. SIHIR HITAM: REDIRECT VILYA → KHAMUL → IRONHILLS
+#############################################
+# Dari Vilya (10.64.1.226) yang MAU ke Khamul (10.64.1.194),
+# dibelokkan ke IronHills (10.64.1.210).
+
+# 9a. Ubah tujuan paket: Vilya -> Khamul MENJADI Vilya -> IronHills
+iptables -t nat -A PREROUTING \
+    -s 10.64.1.226 -d 10.64.1.194 \
+    -j DNAT --to-destination 10.64.1.210
+
+# 9b. Balasan dari IronHills ke Vilya disamarkan seolah-olah dari Khamul
+iptables -t nat -A POSTROUTING \
+    -s 10.64.1.210 -d 10.64.1.226 \
+    -j SNAT --to-source 10.64.1.194
+
+
+#############################################
+# 10. SELESAI
+#############################################
+exit 0
+```
+
+```
+chmod +x /etc/rc.local
+/etc/rc.local
+
+iptables -t nat -L PREROUTING -n --line-numbers
+iptables -t nat -L POSTROUTING -n --line-numbers
+```
+
+### Di IronHills
+```
+apt install netcat-openbsd -y
+nc -l -p 9999
+```
+
+### Di Khamul
+```
+apt install netcat-openbsd -y
+nc -l -p 9999
+```
+
+### Di Vilyan
+```
+echo "Halo dari Vilya" | nc 10.64.1.194 9999
+```
+
+<img width="339" height="69" alt="image" src="https://github.com/user-attachments/assets/270ffee6-4f35-411f-b183-40407c3d69bc" />
+
+## MISI 3 NO 1
+
+### Moria
+```
+# Blok semua trafik KELUAR dari Khamul (ke mana pun)
+iptables -I FORWARD 1 -s 10.64.1.192/29 -j DROP
+
+# Blok semua trafik MASUK ke Khamul (dari mana pun)
+iptables -I FORWARD 2 -d 10.64.1.192/29 -j DROP
+```
+
+```
+chmod +x /etc/rc.local
+/etc/rc.local
+iptables -L FORWARD -n --line-numbers
+```
+
+### IronHills
+
+```
+ping 10.64.1.194
+nc -vz 10.64.1.194 80
+```
+
+<img width="683" height="152" alt="image" src="https://github.com/user-attachments/assets/3a8ea630-9fde-440c-b6e3-d71b8891933f" />
+
+### Khamul
+```
+ping 10.64.1.210
+nc -vz 10.64.1.210 80
+```
+
+<img width="627" height="155" alt="image" src="https://github.com/user-attachments/assets/240f10eb-e6c8-4fc1-a94b-69409f2ee059" />
