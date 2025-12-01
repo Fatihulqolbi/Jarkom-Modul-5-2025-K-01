@@ -2500,3 +2500,84 @@ curl -v http://10.64.1.210
 
 <img width="942" height="556" alt="image" src="https://github.com/user-attachments/assets/3b97a6f2-6594-4a7c-9508-458a22ae7b68" />
 
+## Misi 2 No 5
+
+### Palantir
+```
+nano /etc/rc.local
+
+#!/bin/sh
+# rc.local PALANTIR
+# Server Latihan + Firewall Akses Terjadwal
+
+#############################################
+# 1. IP ADDRESS & ROUTING
+#############################################
+
+ip addr flush dev eth0 2>/dev/null
+ip addr add 10.64.1.234/30 dev eth0
+ip link set eth0 up
+
+ip route del default 2>/dev/null
+ip route add default via 10.64.1.233 dev eth0
+
+echo "nameserver 8.8.8.8"  > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+
+
+#############################################
+# 2. FIREWALL DASAR
+#############################################
+
+iptables -F INPUT
+iptables -P INPUT ACCEPT
+
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p icmp -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+
+#############################################
+# 3. FIREWALL WAKTU PALANTIR (HTTP PORT 80)
+#############################################
+# Faksi Elf 00:00–16:59
+iptables -A INPUT -p tcp -s 10.64.1.10   --dport 80 \
+         -m time --timestart 00:00 --timestop 16:59 --kerneltz -j ACCEPT   # Gilgalad
+iptables -A INPUT -p tcp -s 10.64.1.11   --dport 80 \
+         -m time --timestart 00:00 --timestop 16:59 --kerneltz -j ACCEPT   # Cirdan
+
+# Faksi Manusia 17:00–23:00
+iptables -A INPUT -p tcp -s 10.64.0.2    --dport 80 \
+         -m time --timestart 17:00 --timestop 23:00 --kerneltz -j ACCEPT   # Elendil
+iptables -A INPUT -p tcp -s 10.64.0.3    --dport 80 \
+         -m time --timestart 17:00 --timestop 23:00 --kerneltz -j ACCEPT   # Isildur
+
+# Semua selain waktu & IP di atas = TOLAK
+iptables -A INPUT -p tcp --dport 80 -j REJECT --reject-with icmp-port-unreachable
+
+
+#############################################
+# 4. SELESAI
+#############################################
+echo "[PALANTIR] Firewall jadwal AKTIF"
+exit 0
+
+```
+
+```
+chmod +x /etc/rc.local
+/etc/rc.local
+```
+
+### Testing ( Sekarang jam 07.31 ) 
+
+<img width="344" height="253" alt="image" src="https://github.com/user-attachments/assets/1a27cf97-6abe-40d8-95fb-a3b0ad301a1b" />
+
+### Gilgalad
+
+<img width="399" height="41" alt="image" src="https://github.com/user-attachments/assets/547baa1f-357c-4147-bbd0-a5b1b5733f74" />
+
+### Elendil
+
+<img width="920" height="241" alt="image" src="https://github.com/user-attachments/assets/c810131a-43f3-4087-a1aa-cea703b8afd7" />
